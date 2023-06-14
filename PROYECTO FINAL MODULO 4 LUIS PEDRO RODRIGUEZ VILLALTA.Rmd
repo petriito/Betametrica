@@ -1,0 +1,219 @@
+---
+title: "Proyecto Final Modulo 4"
+author: "Luis Pedro Rodriguez Villalta"
+date: "14/6/2023"
+output: html_document
+---
+
+###Luis Pedro Rodriguez Villalta
+###MODULO 4 Modelos Predictivos II
+###Programa experto en Ciencia de Datos
+##Proyecto Final Score de Credito GermanCredit
+
+### Carguemos las librerias ### ====
+
+library(foreign)
+library(DataExplorer)
+library(gmodels)
+library(ResourceSelection)
+library(ROCR)
+library(Epi)
+library(QuantPsyc)
+library(ggplot2)
+library(memisc)
+library(dplyr)
+
+  ### Carguemos las bases #=====
+
+file.choose()
+
+db <- read.csv(file="C:\\Users\\Petro\\Desktop\\EXPERTO EN CIENCIA DE DATOS\\MODULO 4\\BASE\\germancredit.csv",header = TRUE)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+##carpinteria y revision de las variables
+
+#### ESTRUCTURA
+names(db)
+str(db)
+head(db)
+summary(db)
+
+#todas las variables tienen formato adecuado las numericas son entero adecuado y las categoricas están bien categorizadas.
+
+## VER FALTANTES NA
+plot_intro(db)
+# en ninguna variable existen missin values ya casi está lista la base
+
+
+#atachemos la base para manipularla de mejor manera
+attach(db)
+##crear columnas solicitadas
+data_final <- mutate(db,
+                     edad_cuadrado=age^2)
+View(data_final)
+#elegir las columnas con que se trabajaran
+data_final = data_final[c("Default","duration","amount","installment","age","cards","edad_cuadrado")]
+View(data_final)
+##fase final carpinteria crear nueva columna edad al cuadrado
+#Fin de la etapa de carpinteria, el data frame esta listo para modelarse
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#------ Estimemos el modelo probit, logit, MLP y comparemos los resultados #------------
+logit <- glm(Default ~ .,
+              family = binomial(logit), 
+              data = data_final)
+
+probit <- glm(Default ~ .,
+             family = binomial(probit), 
+             data = data_final)
+
+#--------- Bondad de Ajuste #-----------
+hl1 <- hoslem.test(data_final$Default, 
+                   fitted(logit), g=20)
+hl2 <- hoslem.test(data_final$Default, 
+                   fitted(probit), g=20)
+hl1
+hl2
+#Ho: Bondad de Ajuste
+#H1: no bondad de ajuste
+
+###### ambos modleos logit y probit tiene bondad de ajusto para clasificar
+###### los 1 y los 0
+
+
+
+
+
+
+
+#------- Evaluemos la capacidad predictiva a través de otros criterios #---------
+
+##CURVAS ROC
+#CURVA PROBIT
+predp <- prediction(probit$fitted.values, data_final$Default)
+perfp <- performance(predp, 
+                     measure = "tpr", 
+                     x.measure = "fpr")
+plot(perfp, colorize=T,lty=3)
+abline(0,1,col="black")
+
+
+#CURVA LOGIT MEJORADA
+### usemos otra la librería Epi combinada con ROCR
+##logit 
+ROC(form=Default ~ duration +amount+installment+age+cards,plot="ROC") #sp
+##Las dos curvas estan como una linea tanjente
+##da lo mismo que lanzar la moneda al aire
+
+
+
+
+
+
+
+
+
+##AUC.. area bajo la curva, mientras mas alta mejor
+## mientras más cercano a 1, se recoge más informacion
+#
+##AUC LOGIT
+ROC(form=Default ~ duration +amount+installment+age+cards,plot="ROC")
+
+#AUC PROBIT
+aucp <- performance(predp, measure = "auc")
+aucp <- aucp@y.values[[1]]
+aucp
+###0.65 los dos modelos por lo que ningun modelo es bueno
+
+
+
+
+ 
+ 
+ 
+ 
+ 
+ 
+
+#Encontrando punto de corte óptimo 
+#optimal cutt off LOGIT
+ROC(form=Default ~ duration +amount+installment+age+cards,
+    plot="sp")
+##punto optimo 0.30
+
+#Punto de corte probit
+threshold <- mean(fitted(probit))
+threshold
+##el punto de corte es 0.2998
+
+
+
+
+
+###EFECTIVIDAD DE CADA MODELO y Matriz de confusion resumida
+## LOGIT
+ClassLog(logit,data_final$Default,cut=0.30)
+####efectividad global 0.612, mejor lanzar moneda al aire
+
+## PROBIT
+ClassLog(probit,data_final$Default,cut=threshold)
+## efectividad global de 0.61, mejor lanzar moneda al aire
+
+
+
+
+
+
+
+#------- proyectando la probabilidad #--------
+names(data_final)
+newdata <- data.frame(duration=6,
+                      amount=1900,
+                      installment=6,
+                      age=10,
+                      cards=5,
+                      edad_cuadrado=100)
+
+predict(logit,newdata,type = "response")
+predict(probit,newdata,type = "response")
+
+
+##prediccion logit 0.57
+#prediccion probit 0.55
+
+
+
+##ningun modelo tiene efectividad global adecuada. Incluso ningun modelo recaba información suficiente de AUC o del área debajo
+# de la curva, tampoco las curvas de ROC recogen predicen adecuadamente, por lo que se recomienda replantear las variables
+### elegidas para realizar el modelo y ya con nuevas variables volver a testear los modelos para examinar si las nuevas
+# predicen de mejor manera, dado que actualmente con los porcentajes de predicciín obtenidos es mejor lanzar una moneda
+## al aire
+
+
